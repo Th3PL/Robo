@@ -58,7 +58,7 @@ Projeto de desenvolvimento de um robô móvel com controle via Bluetooth, utiliz
 | ⚡ João Pedro Borsato Cruz | RM550294 | |
 | 💫 Maria Fernanda Vieira de Camargo | RM97956 | |
 | 🚀 Pedro Lucas de Andrade Nunes | RM550366 | |
-| 💥 Vinícius Bernardino de Souza | RM97888 | |
+| 💥 Sofia Amorim Coutinho  | RM552534 | |
 
 ---
 

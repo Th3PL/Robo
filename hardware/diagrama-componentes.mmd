@@ -1,0 +1,87 @@
+%% Diagrama de Componentes - Robo Movel com Controle Bluetooth
+%% Fonte editavel do arquivo hardware/diagrama-componentes.svg
+%% Render: https://mermaid.live  ou  mmdc -i diagrama-componentes.mmd -o diagrama-componentes.png
+
+flowchart LR
+
+    OP["<b>Operador</b><br/><i>ator externo</i><br/>App Android de terminal Bluetooth"]
+
+    subgraph PER["Periféricos"]
+        direction TB
+        BT["<b>Módulo HC-05 / HC-06</b><br/><i>comunicação</i><br/>Ponte Bluetooth ↔ serial · SPP · 5 V"]
+        US["<b>Sensor HC-SR04</b><br/><i>percepção</i><br/>Ultrassônico 2–400 cm · voltado à frente"]
+    end
+
+    subgraph MCU["Arduino Uno R3 — Firmware"]
+        direction TB
+        C1["<b>Serviço de Comunicação BT</b><br/>SoftwareSerial · 9600 bps"]
+        C2["<b>Interpretador de Comandos</b><br/>F · T · E · D · P → ações"]
+        C3["<b>Serviço de Distância</b><br/>Trig / Echo → distância em cm"]
+        C4["<b>Supervisor de Segurança</b><br/>veta avanço · fail-safe BT"]
+        C5["<b>Controle de Movimento</b><br/>frente / ré / esquerda / direita / parar"]
+        C6["<b>Driver da Ponte H</b><br/>IN1–IN4 · PWM em ENA/ENB"]
+
+        C1 --> C2
+        C2 --> C4
+        C3 --> C4
+        C4 --> C5
+        C5 --> C6
+    end
+
+    subgraph POT["Tração e Potência"]
+        direction TB
+        L298["<b>Ponte H L298N</b><br/><i>potência</i><br/>2 canais · sentido + PWM"]
+        M1["<b>Motor 1</b><br/>DC lado direito · N20 500 rpm"]
+        M2["<b>Motor 2</b><br/>DC lado esquerdo · N20 500 rpm"]
+        RD["<b>Tração diferencial</b><br/>2 rodas motrizes + roda boba"]
+
+        L298 -- "OUT1 / OUT2" --> M1
+        L298 -- "OUT3 / OUT4" --> M2
+        M1 -- torque --> RD
+        M2 -- torque --> RD
+    end
+
+    subgraph ENE["Subsistema de Energia"]
+        direction LR
+        BAT["<b>Bateria 7,4 V</b><br/>2× Li-ion 18650 em série"]
+        F1["<b>F1 + chave geral</b><br/>fusível e corte de emergência"]
+        VM["<b>Barramento VM 7,4 V</b><br/>etapa de potência"]
+        REG["<b>Regulador 5 V</b><br/>embarcado na L298N"]
+
+        BAT --> F1 --> VM --> REG
+    end
+
+    subgraph EST["Subsistema Estrutural (CAD)"]
+        direction LR
+        CH["<b>Chassi impresso em 3D</b><br/>cad/stl/robo_arduino.3mf"]
+        SUP["<b>Suportes e fixação</b><br/>Arduino · L298N · bateria · sensor"]
+    end
+
+    OP <-- "Bluetooth SPP 2,4 GHz" --> BT
+    BT <-- "UART 9600 bps · D10/D11" --> C1
+    US <-- "Trig D9 · Echo D8" --> C3
+    C6 -- "IN1–IN4 · ENA/ENB (5 V)" --> L298
+
+    VM -. "7,4 V" .-> L298
+    REG -. "5 V" .-> MCU
+    REG -. "5 V" .-> PER
+    CH -. "sustenta" .-> POT
+    SUP -. "fixa" .-> MCU
+
+    classDef ext   fill:#eef2f7,stroke:#64748b,color:#334155
+    classDef com   fill:#ede9fe,stroke:#7c3aed,color:#5b21b6
+    classDef sen   fill:#dcfce7,stroke:#16a34a,color:#15803d
+    classDef ctrl  fill:#ffffff,stroke:#93c5fd,color:#1e3a8a
+    classDef pow   fill:#fee2e2,stroke:#dc2626,color:#991b1b
+    classDef act   fill:#fef3c7,stroke:#d97706,color:#92400e
+    classDef mec   fill:#f8fafc,stroke:#94a3b8,color:#334155
+    classDef ener  fill:#fafaf9,stroke:#a8a29e,color:#44403c
+
+    class OP ext
+    class BT com
+    class US sen
+    class C1,C2,C3,C4,C5,C6 ctrl
+    class L298 pow
+    class M1,M2 act
+    class RD,CH,SUP mec
+    class BAT,F1,VM,REG ener
