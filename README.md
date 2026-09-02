@@ -52,13 +52,13 @@ Projeto de desenvolvimento de um robô móvel com controle via Bluetooth, utiliz
 
 ## 👥 Integrantes do Projeto
 
-| Nome | RM | Papel |
-|------|----|----|
-| 🍙 Fernanda Kaory Saito | RM551104 | |
-| ⚡ João Pedro Borsato Cruz | RM550294 | |
-| 💫 Maria Fernanda Vieira de Camargo | RM97956 | |
-| 🚀 Pedro Lucas de Andrade Nunes | RM550366 | |
-| 💥 Sofia Amorim Coutinho  | RM552534 | |
+| Nome | RM |
+|------|----|
+| 🍙 Fernanda Kaory Saito | RM551104 |
+| ⚡ João Pedro Borsato Cruz | RM550294 |
+| 💫 Maria Fernanda Vieira de Camargo | RM97956 |
+| 🚀 Pedro Lucas de Andrade Nunes | RM550366 |
+| 💥 Sofia Amorim Coutinho  | RM552534 |
 
 ---
 
