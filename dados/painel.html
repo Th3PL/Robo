@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel de coleta</title>
+<style>
+:root{
+  --bg:#f3f5f7;--card:#fff;--ink:#16202a;--muted:#5d6874;--line:#dde2e7;--soft:#eef1f4;
+  --accent:#0b6884;--accent-ink:#fff;--ok:#1e7d4f;--warn:#a85f00;--bad:#c62828;
+  --c-livre:#2e7d32;--c-aproximando:#b25e00;--c-bloqueado:#6a3fb5;
+  --faixa:rgba(106,63,181,.10);--grav:rgba(198,40,40,.12);--ponto:#8a96a3;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161b;--card:#1a2128;--ink:#e5eaef;--muted:#99a4af;--line:#2b333c;--soft:#222a32;
+  --accent:#49acd3;--accent-ink:#06161d;--ok:#4cc38a;--warn:#e0a03a;--bad:#ef6a6a;
+  --c-livre:#5cbf62;--c-aproximando:#e39a3b;--c-bloqueado:#a787e6;
+  --faixa:rgba(167,135,230,.12);--grav:rgba(239,106,106,.16);--ponto:#6f7a86;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,"Segoe UI",sans-serif}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--card)}
+h1{font-size:18px;margin:0}
+h2{font-size:12px;margin:0 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+h2 small{text-transform:none;letter-spacing:0;font-weight:400}
+.pill{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600;background:var(--soft)}
+.pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.muted{color:var(--muted);font-size:13px}
+main{display:grid;grid-template-columns:minmax(340px,430px) 1fr;gap:14px;padding:14px 18px;max-width:1400px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:12px 16px}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.alerta{margin:12px 18px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--warn);background:color-mix(in srgb,var(--warn) 10%,var(--card))}
+.alerta.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--card))}
+.alerta button{margin-left:8px}
+button{font:inherit;font-size:14px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.dist{display:flex;align-items:baseline;gap:8px}
+#cm{font-size:52px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1}
+#eco{color:var(--bad);font-weight:700}
+.modo{margin-left:auto;padding:3px 10px;border-radius:6px;font-size:13px;font-weight:700;background:var(--soft)}
+.modo.contagem{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
+.modo.roteiro{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.modo.GRAVANDO{background:var(--bad);color:#fff;animation:pisca 1s infinite}
+@keyframes pisca{50%{opacity:.6}}
+canvas{width:100%;height:170px;display:block;margin-top:8px}
+.legenda{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin-top:4px}
+.legenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#msg{margin-top:6px;font-size:14px;min-height:1.4em}
+.rot-livre.on{background:var(--c-livre);border-color:var(--c-livre);color:#fff}
+.rot-aproximando.on{background:var(--c-aproximando);border-color:var(--c-aproximando);color:#fff}
+.rot-bloqueado.on{background:var(--c-bloqueado);border-color:var(--c-bloqueado);color:#fff}
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.grade button{padding:12px 8px;text-align:left}
+.grade button small{display:block;color:var(--muted);font-size:12px}
+.grade button.destaque{outline:3px solid var(--c-bloqueado);outline-offset:1px}
+.pad{display:grid;grid-template-columns:repeat(3,64px);gap:6px;justify-content:center;margin:4px 0 10px}
+.pad button{height:52px;font-size:18px;touch-action:none;user-select:none}
+.parar{width:100%;padding:14px;font-size:17px;font-weight:700;background:var(--bad);border-color:var(--bad);color:#fff}
+kbd{font:12px ui-monospace,monospace;padding:1px 5px;border-radius:4px;border:1px solid currentColor;opacity:.8}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.barra{display:grid;grid-template-columns:110px 1fr 120px;gap:10px;align-items:center;margin:6px 0;font-size:14px}
+.trilho{height:10px;border-radius:99px;background:var(--soft);overflow:hidden}
+.trilho b{display:block;height:100%;border-radius:99px}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:5px 6px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-size:12px;color:var(--muted);font-weight:600}
+td.cel{cursor:pointer;font-variant-numeric:tabular-nums;position:relative}
+td.cel:hover{outline:2px solid var(--accent);outline-offset:-2px}
+td.cel.feito{color:var(--ok);font-weight:600}
+td.cel span.fundo{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb,var(--accent) 12%,transparent);z-index:0}
+td.cel span.t{position:relative}
+#dica{margin-top:8px;font-size:14px;color:var(--accent);min-height:1.4em}
+ul.raj{list-style:none;margin:0;padding:0;max-height:430px;overflow:auto}
+ul.raj li{display:grid;grid-template-columns:44px 1fr 124px auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+ul.raj li .n{color:var(--muted);font-variant-numeric:tabular-nums}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;color:#fff;font-size:12px;font-weight:600;margin-right:6px}
+.tag.livre{background:var(--c-livre)}.tag.aproximando{background:var(--c-aproximando)}.tag.bloqueado{background:var(--c-bloqueado)}
+.nota{font-size:13px;color:var(--warn);font-weight:600}
+.okk{font-size:13px;color:var(--ok)}
+ul.raj button{padding:4px 8px;font-size:12px}
+svg.spark{width:124px;height:30px;display:block}
+pre{white-space:pre-wrap;font:12px/1.45 ui-monospace,Consolas,monospace;background:var(--soft);padding:10px;border-radius:8px;max-height:380px;overflow:auto;margin:10px 0 0}
+pre .bad{color:var(--bad);font-weight:700}pre .ok{color:var(--ok)}
+ol.msgs{list-style:none;margin:0;padding:0;font-size:13px;max-height:180px;overflow:auto}
+ol.msgs li{padding:3px 0;border-bottom:1px solid var(--line)}
+ol.msgs li .h{color:var(--muted);font-variant-numeric:tabular-nums;margin-right:6px}
+ol.msgs li.painel{color:var(--accent)}
+details summary{cursor:pointer;font-weight:600}
+.linha{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+code{font:12px ui-monospace,Consolas,monospace;word-break:break-all}
+</style>
+</head>
+<body>
+<header>
+  <h1>Painel de coleta</h1>
+  <span id="con" class="pill warn">abrindo…</span>
+  <span id="info" class="muted"></span>
+  <span id="sync" class="muted" style="margin-left:auto"></span>
+</header>
+<div id="alertas"></div>
+<main>
+  <div class="col">
+    <section class="card">
+      <div class="dist"><span id="cm">--</span><span class="muted">cm</span><span id="eco"></span><span id="modo" class="modo">--</span></div>
+      <canvas id="graf"></canvas>
+      <div class="legenda">
+        <span><i style="background:var(--ponto)"></i>leitura crua</span>
+        <span><i style="background:var(--accent)"></i>filtrada (o que o modelo vê)</span>
+        <span><i style="background:var(--bad)"></i>sem eco</span>
+        <span><i style="background:var(--grav)"></i>gravando</span>
+        <span><i style="background:var(--faixa)"></i>8 a 35 cm</span>
+      </div>
+      <div id="msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>Rótulo <small>vale para Rajada 3 s e Gravar; os roteiros escolhem sozinhos</small></h2>
+      <div class="seg" id="rot"></div>
+      <h2>Obstáculo</h2>
+      <div class="seg" id="obst"></div>
+      <h2>Velocidade <b id="velv" style="color:var(--ink)"></b></h2>
+      <div class="seg" id="velb"></div>
+      <input type="range" id="vel" min="100" max="255" step="5">
+    </section>
+
+    <section class="card">
+      <h2>Roteiros <small>2 s de contagem para sair da frente</small></h2>
+      <div class="grade">
+        <button data-c="x">Aproximar<small>grava aproximando · para a 15 cm</small></button>
+        <button data-c="y">Empurrar<small>liga o motor e anda até o batente · fora do plano</small></button>
+        <button data-c="w">Livre andando<small>grava livre · precisa de 1 m livre</small></button>
+        <button data-c="r" id="rajada">Rajada 3 s<small>grava o rótulo escolhido, sem mexer no carrinho · use no bloqueado</small></button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Dirigir <small>segure o botão ou as setas do teclado</small></h2>
+      <div class="pad">
+        <span></span><button data-d="F">▲</button><span></span>
+        <button data-d="L">◀</button><button data-c="S">■</button><button data-d="R">▶</button>
+        <span></span><button data-d="B">▼</button><span></span>
+      </div>
+      <div class="linha" style="justify-content:center"><button data-c="g">Gravar (manual)</button><button data-c="p">Parar gravação</button></div>
+    </section>
+
+    <button class="parar" data-c="p">PARAR TUDO <kbd>espaço</kbd></button>
+    <button data-c="u">Desfazer a última rajada</button>
+  </div>
+
+  <div class="col">
+    <section class="card">
+      <h2>Coleta <small>janelas por classe · meta 600 cada</small></h2>
+      <div id="totais"></div>
+      <div id="arquivo" class="muted" style="margin-top:6px"></div>
+    </section>
+
+    <section class="card" id="guia">
+      <h2>Aproximando · próxima rajada <small>siga esta ordem e a matriz sai completa</small></h2>
+      <div id="guiaTxt" style="font-size:16px"></div>
+      <div class="linha">
+        <button id="guiaPrep">Preparar o carrinho para ela</button>
+        <label class="muted">velocidade-teto
+          <select id="teto"><option value="255">255</option><option value="230">230</option><option value="200">200</option></select></label>
+      </div>
+      <div class="muted" id="guiaNota" style="margin-top:6px"></div>
+    </section>
+
+    <section class="card">
+      <h2>O que falta <small>clique numa casa e o painel prepara rótulo, obstáculo e velocidade</small></h2>
+      <table id="plano"></table>
+      <div id="dica"></div>
+    </section>
+
+    <section class="card">
+      <h2>Últimas rajadas no computador</h2>
+      <ul class="raj" id="lista"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Conferir e exportar</h2>
+      <div class="linha" style="margin-top:0">
+        <button id="conferir">Conferir dados e gerar treino.csv / teste.csv</button>
+        <span class="muted" id="confHora"></span>
+      </div>
+      <pre id="saida" hidden></pre>
+    </section>
+
+    <section class="card">
+      <h2>Mensagens</h2>
+      <ol class="msgs" id="msgs"></ol>
+    </section>
+
+    <details class="card">
+      <summary>Avançado</summary>
+      <div class="linha"><label><input type="checkbox" id="autoWifi"> reconectar o notebook na rede do carrinho sozinho</label>
+        <button id="wifiAgora">Conectar agora</button></div>
+      <div class="linha"><button id="apagarCarro">Apagar a memória do carrinho</button>
+        <span class="muted">só depois que o painel copiou tudo; o computador continua com as rajadas</span></div>
+      <h2 style="margin-top:14px">Lixeira <small>não entra no CSV</small></h2>
+      <ul class="raj" id="lixo"></ul>
+    </details>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const CLASSES = ['livre', 'aproximando', 'bloqueado'];
+const OBST = ['nenhum', 'parede', 'caixa', 'cadeira', 'canto', 'outro'];
+let A = 0, M = 0, V = -1, inicio = null, amostras = [], est = null, dadosAt = null, ocupado = false, carregou = false;
+
+async function post(url) {
+  try { const r = await fetch(url, { method: 'POST', headers: { 'x-painel': '1' } }); return await r.json(); }
+  catch { return { ok: false, msg: 'o painel não respondeu' }; }
+}
+const cmd = c => post('/api/cmd?c=' + encodeURIComponent(c)).then(r => { if (!r.ok && r.msg) dica(r.msg, true); return r; });
+const cfg = q => post('/api/cfg?' + q);
+function dica(t, erro) { const d = $('#dica'); d.textContent = t; d.style.color = erro ? 'var(--bad)' : ''; }
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ---------------------------------------------------------------- controles
+CLASSES.forEach((c, i) => $('#rot').insertAdjacentHTML('beforeend', `<button class="rot-${c}" data-r="${i}">${c}</button>`));
+OBST.forEach((o, i) => $('#obst').insertAdjacentHTML('beforeend', `<button data-o="${i}">${o}</button>`));
+[150, 200, 255].forEach(v => $('#velb').insertAdjacentHTML('beforeend', `<button data-v="${v}">${v}</button>`));
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  b.blur();                                    // senão o espaço "aperta" de novo o último botão
+  if (b.dataset.c) cmd(b.dataset.c);
+  if (b.dataset.r) cmd(b.dataset.r);
+  if (b.dataset.o) cfg('obst=' + b.dataset.o);
+  if (b.dataset.v) cfg('vel=' + b.dataset.v);
+});
+$('#vel').oninput = e => { $('#velv').textContent = e.target.value; };
+$('#vel').onchange = e => { cfg('vel=' + e.target.value); e.target.blur(); };
+
+// dirigir: o comando é repetido enquanto o botão (ou a seta) estiver pressionado; o carrinho
+// para sozinho 0,7 s depois do último
+let dirAtual = null, tDir = null;
+function segurar(d) { if (dirAtual === d) return; soltar(); dirAtual = d; cmd(d); tDir = setInterval(() => cmd(d), 250); }
+function soltar() { if (!dirAtual) return; clearInterval(tDir); dirAtual = null; cmd('S'); }
+document.querySelectorAll('[data-d]').forEach(b => {
+  b.addEventListener('pointerdown', e => { e.preventDefault(); segurar(b.dataset.d); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(n => b.addEventListener(n, soltar));
+});
+const SETAS = { ArrowUp: 'F', ArrowDown: 'B', ArrowLeft: 'L', ArrowRight: 'R' };
+addEventListener('keydown', e => {
+  if (e.target.matches('input,select,textarea')) return;
+  if (SETAS[e.key]) { e.preventDefault(); segurar(SETAS[e.key]); }
+  else if (e.key === ' ' || e.key === 'Escape') { e.preventDefault(); soltar(); cmd('p'); }
+});
+addEventListener('keyup', e => { if (e.key === ' ') e.preventDefault(); if (SETAS[e.key] === dirAtual) soltar(); });
+addEventListener('blur', soltar);
+
+$('#conferir').onclick = async () => {
+  $('#conferir').disabled = true; $('#confHora').textContent = 'conferindo…';
+  const r = await post('/api/conferir');
+  $('#conferir').disabled = false; $('#confHora').textContent = 'às ' + new Date().toLocaleTimeString('pt-BR');
+  const s = $('#saida'); s.hidden = false;
+  s.innerHTML = esc(r.saida || r.msg || '').split('\n').map(l => /FALHA|ERRO/.test(l) ? `<span class="bad">${l}</span>` : /^\s+OK\b|Tudo ok/.test(l) ? `<span class="ok">${l}</span>` : l).join('\n');
+};
+$('#autoWifi').onchange = e => post('/api/wifi?auto=' + (e.target.checked ? 1 : 0));
+$('#wifiAgora').onclick = () => post('/api/wifi?conectar=1');
+$('#apagarCarro').onclick = () => { if (confirm('Apagar a memória do carrinho? O computador continua com todas as rajadas.')) cmd('z'); };
+
+// ---------------------------------------------------------------- estado ao vivo
+function desenharEstado(s) {
+  const c = s.carro, con = $('#con');
+  con.className = 'pill ' + (s.conectado ? 'ok' : 'warn');
+  con.textContent = s.conectado ? 'carrinho conectado' : 'procurando o carrinho…';
+  $('#info').textContent = c ? `ligado há ${Math.floor(c.up / 60)} min ${c.up % 60} s · reinícios: ${c.boots} · último: ${c.motivo}` +
+    (c.flash ? '' : ' · SEM cópia na flash') + ` · memória ${c.uso}%` : '';
+  const ok = s.conectado && c;
+  document.querySelectorAll('[data-c],[data-r],[data-o],[data-v],[data-d]').forEach(b => { b.disabled = !ok; });
+  $('#apagarCarro').disabled = !ok || !$('#apagarCarro').dataset.pode;
+  if (c) {
+    $('#cm').textContent = !s.conectado || c.cm < 0 ? '--' : c.cm;
+    $('#eco').textContent = s.conectado && c.cru === 0 ? 'sem eco' : '';
+    const md = $('#modo'); md.textContent = c.modo; md.className = 'modo ' + c.modo;
+    $('#msg').textContent = c.msg;
+    document.querySelectorAll('[data-r]').forEach(b => b.classList.toggle('on', +b.dataset.r === c.rot));
+    document.querySelectorAll('[data-o]').forEach(b => b.classList.toggle('on', +b.dataset.o === c.obst));
+    document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', +b.dataset.v === c.vel));
+    if (document.activeElement !== $('#vel')) { $('#vel').value = c.vel; $('#velv').textContent = c.vel; }
+  }
+  $('#autoWifi').checked = s.wifi.auto;
+  $('#autoWifi').closest('.linha').hidden = !s.wifi.windows;
+
+  const al = [];
+  if (!s.conectado) {
+    const rede = s.wifi.ssid ? `O notebook está na rede <b>${esc(s.wifi.ssid)}</b>.` : s.wifi.windows ? 'O notebook não está em nenhuma rede Wi-Fi.' : '';
+    al.push(['bad', `Sem conexão com o carrinho${s.semContato ? ' há ' + s.semContato + ' s' : ''}. ${rede} ` +
+      (s.wifi.windows ? `<button onclick="post('/api/wifi?conectar=1')">Conectar na ${esc(s.wifi.rede)}</button>` : 'Conecte o notebook na rede ' + esc(s.wifi.rede) + '.') +
+      ' Se o carrinho estiver desligado, é só ligar: nada se perde.']);
+  }
+  if (!s.conectado && s.wifi.erro) al.push(['', esc(s.wifi.erro)]);
+  if (s.conectado && s.semEco >= 5) al.push(['bad', `O sensor não devolve eco há ${s.semEco} s. Ponha a mão a 20 cm dele: se continuar "sem eco", confira as pilhas e os fios do HC-SR04 antes de gravar.`]);
+  if (dadosAt && dadosAt.erroCsv) al.push(['', esc(dadosAt.erroCsv)]);
+  if (aviso && Date.now() < aviso.ate) al.unshift([aviso.k, esc(aviso.txt)]);
+  $('#alertas').innerHTML = al.map(([k, t]) => `<div class="alerta ${k}">${t}</div>`).join('');
+}
+
+function grafico() {
+  const cv = $('#graf'), dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement), cor = n => css.getPropertyValue(n).trim();
+  const L = 34, R = 6, T = 6, B = 6, w = W - L - R, h = H - T - B, MAX = 200, N = 150;
+  const y = cm => T + h - Math.min(cm, MAX) / MAX * h, x = i => L + i / (N - 1) * w, off = N - amostras.length;
+  g.fillStyle = cor('--faixa'); g.fillRect(L, y(35), w, y(8) - y(35));
+  g.font = '11px system-ui'; g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (const v of [0, 50, 100, 150, 200]) {
+    g.fillStyle = cor('--muted'); g.fillText(v, L - 6, y(v));
+    g.strokeStyle = cor('--line'); g.lineWidth = 1; g.beginPath(); g.moveTo(L, y(v)); g.lineTo(L + w, y(v)); g.stroke();
+  }
+  g.setLineDash([4, 4]); g.strokeStyle = cor('--c-aproximando'); g.beginPath(); g.moveTo(L, y(15)); g.lineTo(L + w, y(15)); g.stroke(); g.setLineDash([]);
+  const passo = w / (N - 1);
+  amostras.forEach((s, i) => { if (s.g) { g.fillStyle = cor('--grav'); g.fillRect(x(i + off) - passo / 2, T, passo + 0.5, h); } });
+  amostras.forEach((s, i) => {
+    if (s.cru === 0) { g.fillStyle = cor('--bad'); g.fillRect(x(i + off) - 1.5, T, 3, 6); }
+    else { g.fillStyle = cor('--ponto'); g.beginPath(); g.arc(x(i + off), y(s.cru), 1.8, 0, 7); g.fill(); }
+  });
+  g.strokeStyle = cor('--accent'); g.lineWidth = 2.2; g.beginPath();
+  amostras.forEach((s, i) => { const X = x(i + off), Y = y(s.cm); i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+  g.stroke();
+}
+
+// mensagens que querem dizer "isto NÃO foi guardado" viram um aviso grande por 20 s
+let aviso = null;
+function avisoDe(t) {
+  let m;
+  if ((m = /^reinício \d+: (.*)/.exec(t))) return ['bad', `O carrinho reiniciou: ${m[1]}. A rajada em andamento se perdeu; as já guardadas continuam.`];
+  if (/zona cega/.test(t)) return ['bad', 'Rajada NÃO guardada: o Empurrar ligou o motor e o carrinho chegou a menos de 8 cm. Para o bloqueado parado, aperte o rótulo bloqueado e depois Rajada 3 s, não Empurrar.'];
+  if ((m = /^rajada descartada: (.*)/.exec(t))) return ['', `Rajada NÃO guardada: ${m[1]}.`];
+  if (/não travou|curta demais|já está perto|obstáculo à frente|memória cheia|ocupado/.test(t)) return ['', 'Nada foi gravado: ' + t];
+  return null;
+}
+function addMsgs(lista, novas) {
+  const ol = $('#msgs');
+  for (const m of lista) {
+    ol.insertAdjacentHTML('afterbegin', `<li class="${m.de}"><span class="h">${m.hora}</span>${esc(m.txt)}</li>`);
+    const a = novas && m.de === 'carro' && avisoDe(m.txt);
+    if (a) aviso = { k: a[0], txt: a[1], ate: Date.now() + 20000 };
+  }
+  while (ol.children.length > 60) ol.lastChild.remove();
+}
+
+// ---------------------------------------------------------------- dados guardados
+function spark(v) {
+  const W = 124, H = 30, n = v.length;
+  if (!n) return '';
+  const x = i => (n === 1 ? W / 2 : i / (n - 1) * (W - 4) + 2), y = c => H - 3 - Math.min(c, 200) / 200 * (H - 6);
+  let d = '', pen = false, sem = '';
+  v.forEach((c, i) => {
+    if (c === 0) { pen = false; sem += `<rect x="${x(i) - 1}" y="0" width="2" height="4" fill="var(--bad)"/>`; return; }
+    d += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(c).toFixed(1); pen = true;
+  });
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}"><rect x="0" y="${y(35)}" width="${W}" height="${y(8) - y(35)}" fill="var(--faixa)"/>` +
+    `<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.6"/>${sem}</svg>`;
+}
+function itemRajada(r, lixo) {
+  const t = new Date(r.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const estado = lixo ? `<span class="muted">${esc(r.motivo)}</span>` : r.nota ? `<span class="nota">⚠ ${esc(r.nota)}</span>` : '<span class="okk">✓ forma ok</span>';
+  const bt = lixo ? `<button data-restaurar="${r.chave}">restaurar</button>` : `<button data-lixo="${r.chave}" title="tira do CSV (dá para restaurar)">remover</button>`;
+  return `<li><span class="n">#${r.num}</span><div><span class="tag ${r.rotulo}">${r.rotulo}</span>${esc(r.obst)} · ${r.vel} · ${esc(r.tipo)}` +
+    `<div class="muted">${r.seg.toFixed(1)} s · ${r.janelas} janelas · ${t} · ${estado}</div></div>${spark(r.spark)}${bt}</li>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-lixo],[data-restaurar]');
+  if (!b) return;
+  if (b.dataset.lixo) post('/api/lixeira?chave=' + encodeURIComponent(b.dataset.lixo));
+  else post('/api/restaurar?chave=' + encodeURIComponent(b.dataset.restaurar));
+});
+
+function celula(feito, meta, acao, obst) {
+  const p = Math.min(1, feito / meta);
+  return `<td class="cel${feito >= meta ? ' feito' : ''}" data-acao="${acao}" data-obst="${obst}"><span class="fundo" style="width:${(100 * p).toFixed(0)}%"></span><span class="t">${feito} / ${meta}${feito >= meta ? ' ✓' : ''}</span></td>`;
+}
+function desenharDados(d) {
+  dadosAt = d;
+  $('#totais').innerHTML = d.totais.map(t => {
+    const p = Math.min(1, t.janelas / t.meta);
+    return `<div class="barra"><span class="tag ${t.classe}">${t.classe}</span><div class="trilho"><b style="width:${(100 * p).toFixed(1)}%;background:var(--c-${t.classe})"></b></div>` +
+      `<span class="num">${t.janelas} jan · ${t.rajadas} raj</span></div>`;
+  }).join('');
+  const k = d.carro;
+  $('#sync').textContent = `no computador: ${d.noComputador} rajadas` + (k ? ` · no carrinho: ${k.total}` + (k.faltam ? ` · copiando ${k.faltam}…` : ' · tudo copiado') : '');
+  $('#apagarCarro').dataset.pode = k && !k.faltam ? '1' : '';
+  $('#arquivo').innerHTML = `CSV sempre atualizado: <code>${esc(d.arquivos.detalhado)}</code>`;
+  // bloqueado: 15 por obstáculo, somando Empurrar e parado (o Empurrar reinicia o carrinho com pilha fraca)
+  const p = d.progresso, m = p.meta, mb = m.empurrar + m.parado;
+  $('#plano').innerHTML = '<tr><th>obstáculo</th><th>Bloqueado <small>(parado + Empurrar)</small></th><th>Aproximar</th></tr>' +
+    p.obst.map(o => `<tr><td>${o.obst}</td>${celula(o.empurrar + o.parado, mb, 'parado', o.obst)}${celula(o.aproximar, m.aproximar, 'aproximar', o.obst)}</tr>`).join('') +
+    `<tr><td>livre <small class="muted">andando · parado/girando/ré</small></td>${celula(p.livreAndando, m.livreAndando, 'livreAndando', 'nenhum')}${celula(p.livreRajada, m.livreRajada, 'livreRajada', 'nenhum')}</tr>`;
+  $('#lista').innerHTML = d.rajadas.map(r => itemRajada(r, false)).join('') || '<li class="muted" style="display:block">nenhuma rajada ainda</li>';
+  $('#lixo').innerHTML = d.lixeira.map(r => itemRajada(r, true)).join('') || '<li class="muted" style="display:block">vazia</li>';
+}
+document.addEventListener('click', async e => {
+  const c = e.target.closest('td.cel');
+  if (!c) return;
+  const o = OBST.indexOf(c.dataset.obst), a = c.dataset.acao;
+  if (a === 'empurrar') { await cfg(`obst=${o}&vel=150`); dica(`Pronto para Empurrar na ${c.dataset.obst}: batente a 10, 15 e 20 cm, 2 de cada. Aperte Empurrar.`); }
+  if (a === 'parado') {
+    await cmd('2'); await cfg(`obst=${o}`);
+    dica(`Rótulo bloqueado, ${c.dataset.obst}: carrinho parado, sem motor, com o número da tela em ~10, ~20 e ~30 cm, 5 de cada. Aperte Rajada 3 s (não Empurrar).`);
+    const b = $('#rajada'); b.classList.add('destaque'); setTimeout(() => b.classList.remove('destaque'), 20000);
+  }
+  if (a === 'aproximar') { await cfg(`obst=${o}`); dica(`Pronto para Aproximar na ${c.dataset.obst}: tire o batente; 150, 200 e a velocidade-teto, de frente e a 30°. Aperte Aproximar.`); }
+  if (a === 'livreAndando') { await cfg('obst=0'); dica('Livre andando: espaço com mais de 1 m livre, ~10 rajadas em cada velocidade.'); }
+  if (a === 'livreRajada') { await cmd('0'); await cfg('obst=0'); dica('Rótulo livre: Rajada 3 s com o carrinho parado (8), girando (8) ou de ré (6).'); }
+});
+
+// ---------------------------------------------------------------- guia do aproximando
+// Por obstáculo: 3 velocidades × (3 de frente + 3 a 30°), partindo de 150, 100 e 150 cm.
+// O carrinho não sabe o ângulo nem a partida: o painel conta as rajadas por velocidade e diz qual
+// é a próxima; quem segue a ordem fecha a matriz do plano.
+let teto = 255, guiaProx = null;
+try { teto = +localStorage.getItem('teto') || 255; } catch { }
+$('#teto').value = teto;
+$('#teto').onchange = e => { teto = +e.target.value; try { localStorage.setItem('teto', teto); } catch { } e.target.blur(); desenharGuia(); };
+$('#guiaPrep').onclick = () => { if (guiaProx) cfg(`obst=${guiaProx.obst}&vel=${guiaProx.vel}`); };
+function desenharGuia() {
+  if (!dadosAt) return;
+  const vels = teto > 200 ? [150, 200, teto] : [150, 180, 200];
+  const lista = dadosAt.progresso.obst, meta = dadosAt.progresso.meta.aproximar;
+  if (!lista[0] || !lista[0].aproxVel) { $('#guiaTxt').textContent = 'Feche a janela preta do painel e abra o atalho de novo para ativar este guia.'; return; }
+  const sel = est && est.carro ? OBST[est.carro.obst] : null;
+  const o = lista.find(x => x.obst === sel && x.aproximar < meta) || lista.find(x => x.aproximar < meta);
+  if (!o) {
+    guiaProx = null;
+    $('#guiaTxt').innerHTML = '<b>Aproximando completo ✓</b> nos 4 obstáculos. Próximo: o livre, na tabela abaixo.';
+    $('#guiaPrep').disabled = true; $('#guiaNota').textContent = '';
+    return;
+  }
+  const perto = v => vels.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
+  const cont = vels.map(v => o.aproxVel.filter(x => perto(x) === v).length);
+  const i = cont.indexOf(Math.min(...cont)), k = cont[i], v = vels[i];
+  guiaProx = { obst: OBST.indexOf(o.obst), vel: v };
+  const pronto = est && est.carro && est.carro.obst === guiaProx.obst && est.carro.vel === v;
+  $('#guiaTxt').innerHTML = `<b>${o.obst}</b> · velocidade <b>${v}</b> · <b>${k < 3 ? 'de frente' : 'a 30°'}</b> · partindo de <b>${[150, 100, 150][k % 3]} cm</b>` +
+    `<div class="muted">rajada ${o.aproximar + 1} de ${meta} neste obstáculo · nesta velocidade: ${k} de 6 · sem batente</div>`;
+  const b = $('#guiaPrep');
+  b.textContent = pronto ? '✓ pronto: posicione e aperte Aproximar' : 'Preparar o carrinho para ela';
+  b.disabled = !(est && est.conectado) || pronto;
+  const usouTeto = lista.some(x => x.aproxVel.some(y => perto(y) === vels[2]));
+  $('#guiaNota').textContent = !usouTeto && v === vels[2]
+    ? `Primeira vez a ${v}: fique perto para segurar o carrinho. Se ele encostar no obstáculo, aperte Desfazer e escolha um teto menor aqui ao lado.`
+    : 'Rajada com ⚠ na lista? Remova e repita esta mesma combinação: o guia só avança com rajadas boas.';
+}
+
+// ---------------------------------------------------------------- laço
+async function atualizar() {
+  if (ocupado) return;
+  ocupado = true;
+  try {
+    const s = await (await fetch(`/api/estado?a=${A}&m=${M}&v=${V}`)).json();
+    if (s.inicio !== inicio) {               // o painel foi reaberto: começa do zero
+      if (inicio !== null) { inicio = s.inicio; A = M = 0; V = -1; amostras = []; carregou = false; $('#msgs').innerHTML = ''; ocupado = false; return; }
+      inicio = s.inicio;
+    }
+    const novas = inicio !== null && carregou;   // na primeira leitura vem o histórico: sem avisos
+    carregou = true;
+    A = s.nAmostra; M = s.nMsg;
+    amostras = amostras.concat(s.amostras).slice(-150);
+    addMsgs(s.msgs, novas);
+    if (s.dados) { V = s.versao; desenharDados(s.dados); }
+    est = s;
+    desenharEstado(s);
+    desenharGuia();
+    grafico();
+  } catch {
+    $('#con').className = 'pill warn';
+    $('#con').textContent = 'o painel está fechado: abra de novo o "Abrir painel de coleta.bat"';
+  }
+  ocupado = false;
+}
+setInterval(atualizar, 300);
+atualizar();
+addEventListener('resize', grafico);
+</script>
+</body>
+</html>

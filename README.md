@@ -1,6 +1,7 @@
-# 🤖 Carrinho-Robô SMARS — Bluetooth + desvio de obstáculos
+# 🤖 Carrinho-Robô — do SMARS ao 2WD com ESP32-S3 e TinyML
 
-**Project-based Maker Lab · Check Point 1 · FIAP**
+**Project-based Maker Lab · FIAP** · versão 1: SMARS com Arduino Uno (Check Point 1) · versão 2:
+carrinho 2WD com ESP32-S3, Wi-Fi e coleta de dados para TinyML
 
 | Integrante | RM |
 |---|---|
@@ -12,7 +13,8 @@
 
 ![Carrinho finalizado](img/carrinho-final.jpg)
 
-🎬 **Vídeo de funcionamento (controle remoto + sensor + modo autônomo):** https://youtu.be/DnCW8VLloSI
+🎬 **Vídeo da versão 1 (controle remoto + sensor + modo autônomo):** https://youtu.be/DnCW8VLloSI<br>
+🎬 **Vídeo da versão 2 (carrinho 2WD com ESP32-S3):** https://youtube.com/shorts/CJx2YbQ4NJw?feature=share
 
 ---
 
@@ -53,6 +55,33 @@ equipe em quatro iterações até chegar a uma versão com canal para elástico,
 | **Alimentação** | Bateria 9 V no compartimento do chassi |
 | **Estrutura** | Chassi SMARS impresso em PLA · rodas redesenhadas pela equipe |
 
+### 1.1 A evolução: versão 2
+
+A versão 1 desvia por **limiar**: abaixo de 20 cm, manobra. Ela não diferencia um obstáculo que está
+chegando, quando dá para frear com antecedência, de um robô já travado, que precisa manobrar. A
+versão 2 ataca isso com **TinyML**: um classificador que olha 1 s de leituras do ultrassônico e diz
+se a situação é `livre`, `aproximando` ou `bloqueado`.
+
+Isso pediu outro robô:
+- **Memória:** o modelo não cabe no Uno.
+- **Sem fio de verdade:** ESP32 com Wi-Fi próprio.
+- **Coleta de dados séria:** roteiros automáticos, cópia de segurança na flash e um painel no
+  notebook.
+
+No caminho houve uma etapa intermediária, o **SMARS 2.0**: o mesmo chassi com um ESP32 no lugar do
+Uno, onde foram feitos a primeira coleta e o primeiro treino no Edge Impulse (§8.5).
+
+| | Versão 1 — SMARS (Check Point 1) | Versão 2 — carrinho 2WD |
+|---|---|---|
+| **Microcontrolador** | Arduino Uno R3 | **ESP32-S3-DevKitC-1** (WROOM-2 N32R16V: 32 MB de flash, 16 MB de PSRAM) |
+| **Ponte H** | Shield L293D | **L9110S** |
+| **Motores** | 2× N20, 6 V, 500 rpm | 2× **TT com redução** (os do chassi 2WD) |
+| **Sensor** | HC-SR04 | HC-SR04, com o ECHO por divisor 1 kΩ / 1,5 kΩ (o ESP32 trabalha em 3,3 V) |
+| **Comunicação** | HC-05 + app Bluetooth | **Wi-Fi do próprio ESP32**: página no celular e painel no notebook |
+| **Alimentação** | Bateria 9 V | **4 pilhas AA** com chave; o ESP32 também nas pilhas, por diodo + capacitor |
+| **Estrutura** | Chassi SMARS impresso | **Chassi 2WD de acrílico cortado a laser** |
+| **Decisão de manobra** | Limiar de distância | Classificador TinyML (Edge Impulse), com o conjunto de dados do 2WD em coleta |
+
 ---
 
 ## 2. Principais funcionalidades
@@ -64,6 +93,34 @@ equipe em quatro iterações até chegar a uma versão com canal para elástico,
 - **Tração diferencial** com rodas motoras 1 mm maiores que as livres (contato garantido) e elástico na banda de rodagem.
 - **Telemetria** pela USB (distância, modo, comandos) para depuração e calibração.
 
+**Na versão 2:**
+
+- **Sem cabo:** o ESP32 cria a rede `CARRINHO-COLETA` e serve uma página de controle em
+  `http://192.168.4.1`. Se a conexão cair, o carrinho para em menos de 1 s.
+- **Painel no notebook:**
+  - mostra a distância ao vivo, em gráfico;
+  - dirige pelas setas do teclado;
+  - diz o que falta gravar e confere cada rajada assim que ela chega.
+- **Roteiros automáticos de coleta:** o carrinho dirige e grava sozinho, então o rótulo sai
+  consistente.
+  - **Aproximar:** anda reto e para a 15 cm.
+  - **Livre andando:** só grava com mais de 1 m livre.
+  - **Rajada 3 s:** grava o rótulo escolhido, com o carrinho como estiver.
+- **Pré-processamento idêntico na coleta e na inferência:**
+  - 10 Hz, faixa de 2 a 200 cm;
+  - "sem eco" logo depois de uma leitura perto conta como perto;
+  - mediana de 3, média móvel de 5, normalização para 0–1;
+  - janelas de 1 s.
+- **Coleta que não se perde:** cada rajada fica na flash com um número único, e o painel copia o que
+  faltar quando o notebook volta para a rede.
+- **Diagnóstico embutido:**
+  - motivo do último reinício (queda de tensão, energia cortada…);
+  - alerta de sensor sem eco;
+  - conferência da forma de cada rajada.
+- **Exportação para o Edge Impulse** com separação de treino e teste **por rajada**, para a acurácia
+  medida não sair inflada.
+- **Controle pelo Monitor Serial**, em qualquer uma das duas entradas USB da placa.
+
 ---
 
 ## 3. Organização do repositório
@@ -71,19 +128,29 @@ equipe em quatro iterações até chegar a uma versão com canal para elástico,
 ```
 Robo/
 ├── README.md                      ← este documento
+├── Abrir painel de coleta.bat     ← v2: abre o painel de coleta no navegador do notebook
 ├── cad/
-│   ├── README.md                  ← origem do chassi, evolução das rodas, como regenerar
-│   ├── stl/robo_arduino.3mf       ← projeto de fatiamento completo (9 placas, Sovol SV07)
-│   ├── stl/rodas/*.stl            ← rodas v1 (lisa), v2 (ranhurada) e v4 (canal p/ elástico — final)
+│   ├── README.md                  ← origem dos chassis, evolução das rodas, como regenerar
+│   ├── stl/robo_arduino.3mf       ← v1: projeto de fatiamento completo (9 placas, Sovol SV07)
+│   ├── stl/rodas/*.stl            ← v1: rodas v1 (lisa), v2 (ranhurada) e v4 (canal p/ elástico — final)
 │   └── scripts/                   ← remodel.js (gera as rodas), manifold_check.js, stl_render.js
 ├── hardware/
-│   ├── conexoes.md                ← pinagem final, diagrama e alimentação
+│   ├── conexoes.md                ← v1: pinagem final, diagrama e alimentação
+│   ├── conexoes-2wd.md            ← v2: ESP32-S3 + L9110S + 4× AA, divisor do ECHO, o que medimos na alimentação
 │   └── diagrama-componentes.*     ← diagrama da arquitetura PLANEJADA (L298N), mantido como histórico
 ├── software/
-│   ├── smars_completo/            ← FIRMWARE FINAL: Bluetooth + segurança + modo autônomo
-│   ├── smars_bluetooth/           ← só controle Bluetooth (didático)
-│   ├── smars_desvio/              ← só desvio autônomo (didático)
-│   └── historico/                 ← versões iniciais (v1) mantidas como registro
+│   ├── smars_completo/            ← v1, FIRMWARE FINAL: Bluetooth + segurança + modo autônomo
+│   ├── smars_bluetooth/           ← v1: só controle Bluetooth (didático)
+│   ├── smars_desvio/              ← v1: só desvio autônomo (didático)
+│   ├── historico/                 ← v1: versões iniciais mantidas como registro
+│   ├── carrinho_serial/           ← v2: controle pelo Monitor Serial
+│   ├── teste_hcsr04/              ← v2: teste do sensor
+│   └── coleta_wifi/               ← v2: firmware da coleta (Wi-Fi, página, roteiros, rajadas na flash)
+├── dados/                         ← v2
+│   ├── painel.js · painel.html    ← painel de coleta (servidor local + página)
+│   ├── preparar.js                ← checklist de qualidade e separação treino/teste por rajada
+│   └── coleta/                    ← rajadas.jsonl (tudo o que chegou) e os CSVs gerados
+├── docs/                          ← v2: plano TinyML, testes, coleta, treino e tutorial do painel
 ├── organizacao/                   ← MVP, MoSCoW, Backlog, Kanban (planejamento das aulas)
 └── img/
     ├── carrinho-final.jpg · componentes.jpg · chassi-interno.jpg
@@ -108,7 +175,14 @@ Robo/
 | **16/09** | Problema: rodas motoras **girando em falso** (mesmo diâmetro das livres → perdiam contato). **v3**: motoras Ø33, livres Ø32 | `cad/stl/rodas/roda_motor_*.stl` |
 | **17/09** | **v4 – canal para elástico** com parede em rampa de 45° (imprime sem suporte). Elástico nas motoras: **tração resolvida** ✅ | [img/rodas/v4-canal-render.png](img/rodas/v4-canal-render.png) |
 | **17/09** | Firmware: desvio v1 → v2 (filtro, escaneio) → **v3** (gira até ver livre, fuga); Bluetooth v2 (velocidade, diagonais); **firmware unificado** com modo manual seguro + autônomo | [software/](software/) |
-| **17/09** | Documentação final desta versão do repositório | este README |
+| **17/09** | Documentação final da versão 1 (Check Point 1) | este README |
+| **set.–out.** | **SMARS 2.0**: ESP32 no lugar do Uno, primeira coleta de dados e primeiro treino no Edge Impulse. Acurácia de 77–78%, mas a classe `bloqueado` não funcionou (F1 de 0,10 a 0,14): ela foi gravada na zona cega do sensor | [§8.5](#85-tinyml-classificar-a-situação-e-não-só-a-distância) |
+| **15–16/10** | **Versão 2**: chassi 2WD de acrílico cortado a laser, ESP32-S3, L9110S e 4 pilhas AA. Diagrama de fiação com a chave e o ESP32 alimentado pelas pilhas (diodo + capacitor) | [hardware/conexoes-2wd.md](hardware/conexoes-2wd.md) |
+| **18/10** | Motores na L9110S, com teste de frente, ré e curvas. Erro de upload: a COM5 era uma porta de Bluetooth, não o ESP32 | [§9](#9-testes-e-resultados) |
+| **24/10** | Controle por app de Bluetooth clássico não funciona: o ESP32-S3 só tem BLE. O controle passa para o Monitor Serial, com a correção da USB nativa | [software/carrinho_serial/](software/carrinho_serial/) |
+| **25/10** | Esquerda e direita corrigidas no código. HC-SR04 com divisor no ECHO, testado. Plano de TinyML adaptado do SMARS 2.0 (testes, coleta, treino) e firmware `coleta_wifi` | [docs/](docs/), [software/coleta_wifi/](software/coleta_wifi/) |
+| **28/10** | Primeira sessão de coleta (`livre`):<br>• reinícios por queda de tensão: as rajadas passam a ficar na flash, e a página mostra o motivo do reinício;<br>• sensor sem eco a sessão inteira: sessão descartada;<br>• **painel de coleta** no notebook | [dados/painel.js](dados/painel.js) |
+| **29/10** | Coleta do `bloqueado`: o roteiro Empurrar reiniciava o carrinho com o motor travado, então o bloqueado passou a ser gravado com o carrinho parado. **60 rajadas em 4 obstáculos.** Guia do `aproximando` no painel | [dados/coleta/](dados/coleta/) |
 
 ---
 
@@ -177,6 +251,28 @@ Dimensões medidas dos componentes para o projeto do chassi (13/08): [img/tabela
 | T35–T37 documentação de circuito, software e montagem | ✅ |
 | T38 demonstração | 🎬 vídeo — link no topo |
 
+### 5.6 Versão 2: requisitos e decisões
+
+| Requisito da versão 2 | Status |
+|---|---|
+| Robô alimentado só pelas pilhas, ESP32 incluso (sem cabo) | ✅ diodo 1N5819 + capacitor 1000 µF no pino 5V |
+| Controle sem fio | ✅ Wi-Fi próprio, com página e painel |
+| Motores: frente, ré, curvas, giro no lugar | ✅ |
+| HC-SR04 lendo em 3,3 V | ✅ divisor no ECHO |
+| Coleta rotulada por **situação**, com variedade de obstáculo e velocidade | 🔄 `bloqueado` completo, `aproximando` e `livre` em andamento |
+| Modelo treinado com os dados do 2WD | ⏳ depois da coleta (o primeiro modelo, do SMARS 2.0, está na §8.5) |
+| Inferência no ESP32-S3 comandando os motores | ⏳ |
+
+| Item | Versão 1 | Versão 2 | Por quê |
+|---|---|---|---|
+| Microcontrolador | Arduino Uno | **ESP32-S3** (32 MB flash, 16 MB PSRAM) | o modelo exportado do Edge Impulse ocupou 293 KB de flash no SMARS 2.0, e o Uno tem 32 KB; o ESP32 ainda traz Wi-Fi e 240 MHz |
+| Comunicação | HC-05 (Bluetooth clássico) | **Wi-Fi** (ponto de acesso no ESP32) | o ESP32-S3 só tem BLE, e o app de HC-05 não conecta. O Wi-Fi deu, além do controle, a página de coleta e o painel no notebook |
+| Ponte H | Shield L293D | **L9110S** | não existe shield no formato do ESP32; a L9110S é pequena e trabalha bem com 6 V |
+| Chassi e motores | SMARS impresso, N20 | **2WD de acrílico, motores TT** | espaço para pilhas, ponte e placa; o chassi já vem com motores e rodízio |
+| Alimentação | 9 V | **4× AA** com chave | uma fonte só para tudo; o diodo protege as pilhas quando o USB está ligado |
+| Sensor | A0 / A1 | **GPIO 1 / GPIO 2** com divisor | o ECHO de 5 V queimaria o GPIO de 3,3 V |
+| Coleta do `bloqueado` | — (no SMARS 2.0, empurrando com a mão) | **carrinho parado a 10, 20 e 30 cm** | com o motor travado, as pilhas derrubavam a tensão: o ESP32 reiniciava e o sensor errava |
+
 ---
 
 ## 6. Projeto mecânico e fabricação
@@ -231,6 +327,13 @@ Tabela completa das versões, arquivos e como regenerar: [cad/README.md](cad/REA
 - **Capa frontal do sensor** (peças `ultrasonic_1`, `ultrasonic_2a`, `ultrasonic_2b` — placas 7 a 9), impressa em laranja: protege e posiciona o HC-SR04 voltado para a frente, com os dois transdutores expostos.
 - **Suportes internos** da bateria (laranja) e dos motores integrados ao chassi; bateria e motores ficam totalmente encapsulados, com o shield acessível por cima para programação e troca de bateria.
 - **Acesso aos componentes**: a parte superior (Uno + shield) fica aberta, o que permite programar pelo USB, trocar a bateria e mexer nos bornes sem desmontar nada. Uma tampa superior encaixável está prevista como melhoria (backlog).
+
+### 6.4 Versão 2: chassi 2WD
+
+O chassi da versão 2 é o **2WD laser cut robot chassis** (WHoogterp,
+[Thingiverse 1641782](https://www.thingiverse.com/thing:1641782)), em acrílico de 3 mm: duas rodas
+motoras com motores TT, um rodízio na frente e espaço em cima para o pack de pilhas, a ponte H e o
+ESP32-S3.
 
 ---
 
@@ -287,6 +390,44 @@ com ~4,5 V — insuficiente para vencer o atrito lateral das rodas livres nos gi
 ### 7.4 Fotos da montagem
 
 [img/componentes.jpg](img/componentes.jpg) · [img/chassi-interno.jpg](img/chassi-interno.jpg) · [img/carrinho-final.jpg](img/carrinho-final.jpg)
+
+### 7.5 Versão 2
+
+| Componente | Qtd | Função |
+|---|---|---|
+| ESP32-S3-DevKitC-1 (WROOM-2 N32R16V) | 1 | lógica, Wi-Fi, coleta e, depois, a inferência do modelo |
+| Ponte H L9110S | 1 | 2 canais: motor A (direito) e motor B (esquerdo) |
+| Motor TT com redução | 2 | tração |
+| HC-SR04 | 1 | distância |
+| Resistores 1 kΩ e 1,5 kΩ | 1 + 1 | divisor do ECHO (5 V → 3,0 V) |
+| Diodo Schottky 1N5819 | 1 | pilhas → pino 5V do ESP32, bloqueia o retorno quando o USB está ligado |
+| Capacitor eletrolítico 1000 µF | 1 | segura o 5V na partida dos motores |
+| Suporte para 4 pilhas AA + chave liga/desliga | 1 | alimentação de tudo |
+| Chassi 2WD de acrílico + rodízio | 1 | estrutura |
+
+```mermaid
+flowchart LR
+    PACK["4× AA"] --> CH["Chave"]
+    CH --> H["L9110S"]
+    CH -- "1N5819" --> ESP["ESP32-S3<br/>pino 5V"]
+    ESP -- "GPIO 15/16 · 4/5" --> H
+    H --> MD["Motor TT direito"]
+    H --> ME["Motor TT esquerdo"]
+    ESP -- "TRIG GPIO 1" --> US["HC-SR04"]
+    US -- "ECHO → divisor → GPIO 2" --> ESP
+    ESP <-- "Wi-Fi" --> CEL["Celular / notebook"]
+```
+
+Pino a pino, o divisor e o que medimos na alimentação: **[hardware/conexoes-2wd.md](hardware/conexoes-2wd.md)**.
+
+A alimentação foi o ponto mais difícil da versão 2. A partida dos motores derruba a tensão das
+pilhas: com pilhas usadas, o ESP32 reinicia e o sensor para de devolver eco. O que resolveu:
+- rampa de aceleração no firmware;
+- Wi-Fi com potência reduzida;
+- capacitor no 5V;
+- pilhas novas a cada sessão.
+
+O caso extremo, o motor travado contra um obstáculo, foi tirado da coleta (§9).
 
 ---
 
@@ -355,6 +496,137 @@ a distância e cada decisão de manobra.
 | **v2 Bluetooth** ([smars_bluetooth](software/smars_bluetooth/smars_bluetooth.ino)) | — | slider de velocidade, diagonais, compensação por motor, 255 |
 | **Unificado** ([smars_completo](software/smars_completo/smars_completo.ino)) | dois uploads diferentes para demonstrar sensor e Bluetooth | manual seguro + autônomo no mesmo firmware, alternado pelo app |
 
+### 8.4 Versão 2: firmware e painel de coleta
+
+| Pasta | Uso | Estado |
+|---|---|---|
+| [`software/carrinho_serial/`](software/carrinho_serial/carrinho_serial.ino) | controle pelo Monitor Serial: `f`, `t`, `e`, `d`, curvas, `p`, `v 150`, tempo opcional (`f 1000`) | ✅ |
+| [`software/teste_hcsr04/`](software/teste_hcsr04/teste_hcsr04.ino) | o sensor sozinho, com a distância crua e uma barra no Monitor Serial | ✅ |
+| [`software/coleta_wifi/`](software/coleta_wifi/coleta_wifi.ino) | **coleta para o Edge Impulse**: Wi-Fi, página, roteiros, rajadas na flash | ✅ usar este |
+| [`dados/painel.js`](dados/painel.js) + [`painel.html`](dados/painel.html) | painel no notebook (atalho `Abrir painel de coleta.bat`) | ✅ |
+| [`dados/preparar.js`](dados/preparar.js) | confere a qualidade e separa treino/teste **por rajada** | ✅ |
+
+Compilação: Arduino IDE 2.x, pacote **esp32** da Espressif, placa **ESP32S3 Dev Module** (Flash OPI
+80 MHz, 32 MB, PSRAM OPI). Nenhuma biblioteca externa. Detalhes em [software/README.md](software/README.md).
+
+**Duas entradas USB.** A placa tem a USB nativa do ESP32-S3 e uma UART por chip conversor, e o
+`Serial` do Arduino vai para uma ou para a outra conforme uma opção da IDE. Os sketches escrevem e
+leem nas duas ao mesmo tempo, então o Monitor Serial funciona em qualquer cabo. Foi o que resolveu
+"o carrinho não responde a nenhum comando".
+
+**Como a coleta funciona** (`coleta_wifi`):
+
+- **O que se guarda:** o ESP32 cria a rede `CARRINHO-COLETA`, serve a página e grava a **distância
+  crua** de cada amostra, a 10 Hz, em **rajadas**. Cada rajada leva rótulo, obstáculo, velocidade e
+  tipo. O pré-processamento só é aplicado na hora de gerar o CSV, então dá para regerar qualquer
+  formato sem coletar de novo.
+- **Leituras de aquecimento:** cada rajada leva junto até 7 leituras de **antes** dela, que só
+  aquecem o filtro, como acontece na placa durante o uso.
+- **Roteiros:** o carrinho dirige e grava sozinho, então a rajada contém **só o fenômeno**:
+
+| Roteiro | Grava | Como |
+|---|---|---|
+| Aproximar | `aproximando` | anda reto, grava e para sozinho com o sensor a 15 cm |
+| Livre andando | `livre` | confere se há mais de 1 m livre, anda e grava 3 s; corta o fim se algo aparecer |
+| Rajada 3 s | o rótulo escolhido | grava 3 s com o carrinho como estiver: parado, girando, de ré |
+| Empurrar | `bloqueado` | anda até travar num batente e grava 3 s forçando (ver §9: substituído pelo bloqueado parado) |
+
+- **À prova de reinício:**
+  - cada rajada fechada vai para a flash (LittleFS) com um **número único**, formado pelo número da
+    ligação e pelo número da rajada;
+  - a página mostra quantas vezes a placa reiniciou e **por quê**: queda de tensão, energia cortada,
+    watchdog…;
+  - a rampa de aceleração e o Wi-Fi a 5 dBm reduzem o pico de corrente.
+
+**O painel no notebook** (`dados/painel.js`) é um servidor local em Node.js, sem dependências, com
+uma página no navegador:
+
+- **Ao vivo:** distância em gráfico (crua, filtrada e "sem eco"); setas do teclado para dirigir;
+  espaço para PARAR TUDO.
+- **Cópia das rajadas:** o painel copia cada rajada que o carrinho fecha, pelo número único. Se o
+  notebook cai da rede ou o carrinho reinicia, ele busca na flash o que faltou quando volta. O
+  Windows trocando de rede sozinho é corrigido com `netsh`.
+- **Conferência imediata:** cada rajada chega com `✓ forma ok` ou `⚠` e o motivo, por exemplo "só
+  30% das janelas descendo" ou "nenhum eco".
+- **O que falta gravar:** a tabela *O que falta* acompanha o plano por obstáculo. O guia do
+  `aproximando` diz a próxima combinação de velocidade, ângulo e partida, e o botão *Preparar*
+  acerta tudo no carrinho.
+- **Exportação:** *Conferir dados* roda o `preparar.js`, que gera `treino.csv` e `teste.csv` para o
+  Edge Impulse.
+
+### 8.5 TinyML: classificar a situação e não só a distância
+
+**As classes** são rotuladas pela **situação**, e não por faixa de distância. Rótulo por faixa
+reproduziria o limiar da versão 1 e daria uma acurácia alta e inútil.
+
+| Classe | Situação |
+|---|---|
+| `livre` | nada perto, ou o carrinho se afastando |
+| `aproximando` | distância caindo: obstáculo chegando |
+| `bloqueado` | parado perto de um obstáculo (8–35 cm) |
+
+**O pré-processamento** é idêntico na coleta e na inferência, marcado com `(*)` nos dois firmwares:
+
+| Etapa | Valor |
+|---|---|
+| leitura | 10 Hz, timeout de 25 ms (~4 m) |
+| faixa | 2 a 200 cm; "sem eco" logo depois de uma leitura < 20 cm repete a última (zona cega), no resto vale 200 |
+| filtros | mediana de 3 (tira picos) + média móvel de 5 |
+| normalização | ÷ 200 → 0 a 1 |
+| janela | 10 amostras = 1 s, passo 2 no CSV |
+
+**O primeiro modelo veio do SMARS 2.0.**
+- **Os dados:** 1.543 janelas (`livre` 718 · `aproximando` 535 · `bloqueado` 290), coletadas
+  empurrando o carrinho com a mão.
+- **O Edge Impulse:** bloco *Raw data* + *Classification*, 20 ciclos, learning rate 0,005, os
+  parâmetros fixados na aula.
+- **A placa:** o modelo foi exportado como biblioteca Arduino (EON) e **rodou no ESP32** com
+  `run_classifier()`, em 293 KB de flash e 24 KB de RAM.
+
+| | Rodada 1 | Rodada 2 |
+|---|---|---|
+| Acurácia | 77,0% | 78,0% |
+| F1 `livre` | 0,80 | 0,84 |
+| F1 `aproximando` | 0,79 | 0,75 |
+| **F1 `bloqueado`** | **0,14** | **0,10** |
+
+O modelo funciona para `livre` e `aproximando` e **falha em `bloqueado`**, que virava `aproximando`
+em 83% a 90% das vezes. O teste de bancada mostrou a causa física:
+- **Zona cega:** o `bloqueado` foi gravado com o sensor a menos de 5 cm do obstáculo. Ali o HC-SR04
+  não recebe o eco, a leitura vira 200 cm, e a janela fica igual à de um corredor vazio.
+- **Tomadas longas:** as gravações contínuas de 60 a 146 s deixaram só 28% das janelas de
+  `aproximando` realmente descendo.
+- **Limpar o CSV não resolve:** a limpeza melhorou o número contra o próprio conjunto filtrado e
+  piorou contra o conjunto original (67%). O problema estava na coleta, não no treino.
+
+**O que a versão 2 mudou na coleta, por causa disso:**
+
+| No SMARS 2.0 | No 2WD |
+|---|---|
+| tomadas de 60–146 s, com o fenômeno misturado | **rajadas curtas** gravadas pelos roteiros, só com o fenômeno |
+| `bloqueado` na zona cega | `bloqueado` **a 10, 20 e 30 cm**, e rajada abaixo de 8 cm é descartada |
+| `livre` com leituras médias misturadas | `livre` só com mais de 1 m à frente |
+| carrinho empurrado com a mão | roteiros com o motor andando, nas velocidades do uso real |
+| teste e treino cortados aleatoriamente (janelas 80% sobrepostas) | separação **por rajada**, estratificada por classe, obstáculo e velocidade |
+| erro descoberto depois do treino | `preparar.js` e a conferência do painel **antes** do upload |
+
+**Situação da coleta do 2WD (29/10):**
+- **`bloqueado` completo:** 60 rajadas, 15 em cada obstáculo (parede, caixa, cadeira, canto), 660
+  janelas. O checklist dá **100% das janelas paradas entre 8 e 35 cm**, a classe que reprovou no
+  SMARS 2.0.
+- **`aproximando` começando**, com o guia do painel.
+- **`livre` a refazer:** a sessão de 28/10 foi gravada com o sensor sem eco e descartada.
+- **Depois da coleta:** treinar com os mesmos parâmetros e exportar para o ESP32-S3. As metas e o
+  passo a passo estão em [docs/plano-treino.md](docs/plano-treino.md):
+  - acurácia ≥ 92% no *Model testing*;
+  - F1 ≥ 0,90 em cada classe;
+  - recall de `bloqueado` ≥ 0,90.
+
+Os planos estão todos em [docs/](docs/):
+[TinyML](docs/plano-tinyml.md) · [testes](docs/plano-testes.md) · [coleta](docs/plano-coleta.md) ·
+[aproximando e bloqueado](docs/plano-aproximando-bloqueado.md) · [treino](docs/plano-treino.md) ·
+[tutorial do painel](docs/tutorial-pagina-coleta.md).
+
 ---
 
 ## 9. Testes e resultados
@@ -375,8 +647,27 @@ a distância e cada decisão de manobra.
 | 12 | Bloqueio de avanço no modo manual | 🔄 | Obstáculo a < 20 cm para o carrinho; validação no vídeo |
 | 13 | Autonomia da bateria | ⏳ | Não medida formalmente |
 
-**Resultado final:** carrinho funcional, controlado pelo celular, com bloqueio de colisão e modo autônomo;
-estrutura impressa em 3D com rodas redesenhadas pela equipe após o descarte das esteiras.
+**Resultado final da versão 1:** carrinho funcional, controlado pelo celular, com bloqueio de colisão
+e modo autônomo; estrutura impressa em 3D com rodas redesenhadas pela equipe após o descarte das
+esteiras.
+
+### Versão 2
+
+| # | Teste | Resultado | Problema / correção |
+|---|---|---|---|
+| 2.1 | Upload pela COM5 | ❌ | `Could not open COM5`: era uma porta criada por aparelho Bluetooth pareado. Gravar pela COM da USB nativa do ESP32 |
+| 2.2 | Motores: frente, ré, curvas | ✅ | — |
+| 2.3 | Controle por app de HC-05 | ❌ | O ESP32-S3 só tem **BLE**, e o app usa Bluetooth clássico (SPP). O controle passou para o Monitor Serial e depois para o Wi-Fi |
+| 2.4 | Comandos pelo Monitor Serial | ❌ → ✅ | Nenhum comando chegava: o `Serial` ia para a outra entrada USB. O firmware passou a usar as duas |
+| 2.5 | Esquerda e direita | ❌ → ✅ | Invertidas: corrigido no código (motor A = direita, B = esquerda), sem refazer a fiação |
+| 2.6 | HC-SR04 com divisor | ✅ | Leitura parada estável (47–48 cm). O mínimo de 2 cm é o limite do sensor e do programa |
+| 2.7 | Coleta: a tabela zerava | ❌ → ✅ | O ESP32 reiniciava na partida dos motores, e a RAM se perdia. Rajadas na flash, motivo do reinício na página, rampa e Wi-Fi a 5 dBm |
+| 2.8 | Cópia no computador | 🔶 → ✅ | A primeira versão perdia rajadas quando o notebook caía da rede e o carrinho reiniciava junto. O painel passou a copiar pela flash, por número único |
+| 2.9 | Sessão do `livre` (28/10) | ❌ | 8.166 leituras, todas **sem eco** (fio do sensor e pilhas fracas). Sessão descartada. O painel ganhou o alerta "sensor sem eco" |
+| 2.10 | Roteiro Empurrar para o `bloqueado` | ❌ | 2 rajadas boas em 13 tentativas: reinícios com o motor travado e leituras abaixo de 8 cm. Na velocidade 200, o sensor ficou sem eco enquanto o motor forçava |
+| 2.11 | `bloqueado` com o carrinho parado | ✅ | 60 rajadas, 4 obstáculos, ~10, ~20 e ~30 cm; 100% das janelas com a forma certa |
+| 2.12 | Firmware da coleta e painel | ✅ | Compilado (990 KB, 75% da partição). Painel em uso na coleta |
+| 2.13 | Modelo treinado com os dados do 2WD | ⏳ | depois de completar `aproximando` e `livre` |
 
 ---
 
@@ -384,6 +675,7 @@ estrutura impressa em 3D com rodas redesenhadas pela equipe após o descarte das
 
 - **Foto do carrinho finalizado:** [img/carrinho-final.jpg](img/carrinho-final.jpg)
 - **Vídeo (controle remoto, sensor e modo autônomo):** https://youtu.be/DnCW8VLloSI
+- **Vídeo da versão 2 (carrinho 2WD com ESP32-S3):** https://youtube.com/shorts/CJx2YbQ4NJw?feature=share
 
 ### Como usar
 
@@ -396,6 +688,22 @@ estrutura impressa em 3D com rodas redesenhadas pela equipe após o descarte das
 7. Para reprogramar: retire o jumper PWR do shield (ou a bateria), conecte o USB, grave `software/smars_completo` com a IDE Arduino (placa *Arduino Uno*, biblioteca *Adafruit Motor Shield library*).
 
 Calibração recomendada no piso da demonstração: `VEL_MAX_E/D` (andar reto) e `T_MEIA_VOLTA_MS` (tempo de 180°).
+
+### Como usar a versão 2 (coleta)
+
+1. Pilhas novas no suporte e chave ligada. O LED da placa pisca em verde.
+2. Notebook na rede **CARRINHO-COLETA** (senha `carrinho123`).
+3. Clique duas vezes em **`Abrir painel de coleta.bat`** e espere o selo verde **carrinho
+   conectado**. O celular também funciona, na página `http://192.168.4.1`.
+4. Ponha a mão a 20 cm do sensor: o número tem que acompanhar.
+5. Clique na casa de *O que falta* que vai gravar, posicione o carrinho e aperte o roteiro.
+6. A rajada aparece em *Últimas rajadas*. Se vier com `⚠`, aperte **remover** e repita.
+7. No fim, aperte **Conferir dados**: com o checklist em OK, `dados/coleta/treino.csv` e
+   `teste.csv` vão para o Edge Impulse.
+
+Para gravar o firmware: solte do pino 5V o fio do diodo, conecte a USB nativa e grave
+`software/coleta_wifi` (ESP32S3 Dev Module, OPI 80 MHz, 32 MB, OPI PSRAM). O passo a passo completo
+está no [tutorial](docs/tutorial-pagina-coleta.md).
 
 ---
 
@@ -414,11 +722,26 @@ Calibração recomendada no piso da demonstração: `VEL_MAX_E/D` (andar reto) e
 | Elásticos | 2 | — | R$ 0,00 |
 | **Total** | | | **R$ 230,67** |
 
+**Versão 2** (valores a preencher pela equipe):
+
+| Componente | Qtd | Unitário | Total |
+|---|---|---|---|
+| ESP32-S3-DevKitC-1 (N32R16V) | 1 | | |
+| Ponte H L9110S | 1 | | |
+| Chassi 2WD de acrílico com 2 motores TT, rodas e rodízio | 1 | | |
+| Sensor HC-SR04 | 1 | reaproveitado da v1 | — |
+| Suporte para 4 pilhas AA com chave + 4 pilhas AA | 1 | | |
+| Diodo 1N5819, capacitor 1000 µF, resistores 1 kΩ e 1,5 kΩ | 1 de cada | | |
+| **Total** | | | |
+
 ---
 
 ## 12. Créditos e licença
 
 - Chassi, suportes e capa do sensor: **SMARS** — Kevin Thomas, Thingiverse, licença Creative Commons (uso não comercial, atribuição).
+- Chassi da versão 2: **2WD laser cut robot chassis** — WHoogterp, [Thingiverse 1641782](https://www.thingiverse.com/thing:1641782), licença Creative Commons BY-NC.
+- Firmwares da versão 2, painel de coleta e planos de TinyML: equipe do projeto.
+- Treino e exportação do modelo: [Edge Impulse](https://edgeimpulse.com).
 - Rodas v1–v4, scripts de geração/validação, firmware e documentação: equipe do projeto.
 - Biblioteca `AFMotor`: Adafruit Motor Shield library v1 (BSD).
 - App de controle: *Arduino Bluetooth RC Car* (Android).

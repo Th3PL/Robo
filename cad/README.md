@@ -46,6 +46,12 @@ node scripts/manifold_check.js roda_motor_canal.stl
 `roda.stl` é a exportação das 4 rodas originais do 3MF (placa 3). Parâmetros (diâmetros, profundidade do
 canal, número de ranhuras) estão no topo de `remodel.js`.
 
+## Chassi da versão 2
+
+Na versão 2 o chassi deixou de ser impresso: é o **2WD laser cut robot chassis** (WHoogterp,
+[Thingiverse 1641782](https://www.thingiverse.com/thing:1641782), CC BY-NC), em acrílico de 3 mm, com
+2 motores TT e um rodízio na frente. Não há peças impressas na versão 2.
+
 ## Impressão
 
 - Impressora Sovol SV07, bico 0,4 mm, camada 0,2 mm, PLA.
